@@ -6,23 +6,29 @@ import { calculateCharges } from './utils/calculations';
 import { FaImage, FaTrash, FaPlus, FaArrowLeft, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import logoData from './assets/TradeVoid.png'; 
 
-// Import the new background
+// Import your background component
 import MatrixBackground from './components/MatrixBackground';
 
 // --- COMPONENTS ---
 
-const DashboardPage = ({ refreshTrigger }) => {
+const DashboardPage = () => {
   const [trades, setTrades] = useState([]);
   const [expandedTradeId, setExpandedTradeId] = useState(null); 
   
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalEntries, setTotalEntries] = useState(0);
-  const [stats, setStats] = useState({ totalPnL: 0, winRate: 0 });
+
+  // Stats State
+  const [stats, setStats] = useState({ netPnL: 0, winRate: 0 });
 
   const fetchData = async () => {
     try {
-      const listRes = await axios.get(`http://localhost:5000/api/trades?page=${page}&limit=10`);
+      const timestamp = Date.now();
+      console.log("1. 🔄 Requesting Data...");
+
+      // 1. Get Trades
+      const listRes = await axios.get(`http://localhost:5000/api/trades?page=${page}&limit=10&_t=${timestamp}`);
       
       if (Array.isArray(listRes.data)) {
          setTrades(listRes.data);
@@ -33,21 +39,40 @@ const DashboardPage = ({ refreshTrigger }) => {
          setTotalEntries(listRes.data.totalTrades || 0);
       }
 
-      const statsRes = await axios.get('http://localhost:5000/api/stats');
-      setStats(statsRes.data || { totalPnL: 0, winRate: 0 });
+      // 2. Get Stats
+      const statsRes = await axios.get(`http://localhost:5000/api/stats?_t=${timestamp}`);
+      
+      // --- DEBUGGING LOGS ---
+      console.log("2. 📊 RAW STATS FROM SERVER:", statsRes.data);
 
-    } catch (err) { console.error("Fetch Error:", err); }
+      let finalStats = statsRes.data;
+
+      // Handle if Mongo returns an array (e.g. [{ netPnL: 500 }]) instead of an object
+      if (Array.isArray(statsRes.data)) {
+          console.log("⚠️ Server sent an Array, extracting first item...");
+          finalStats = statsRes.data[0] || { netPnL: 0, winRate: 0 };
+      }
+
+      console.log("3. ✅ FINAL STATS SET TO STATE:", finalStats);
+      setStats(finalStats);
+
+    } catch (err) { console.error("❌ Fetch Error:", err); }
   };
 
-  useEffect(() => { fetchData(); }, [page, refreshTrigger]);
+  // Run on load and when page changes
+  useEffect(() => { fetchData(); }, [page]);
 
   const deleteTrade = async (e, id) => {
     e.stopPropagation(); 
     if(!window.confirm("Delete this trade?")) return;
+
     try {
       await axios.delete(`http://localhost:5000/api/trades/${id}`);
-      fetchData(); 
-    } catch (err) { alert("Failed to delete"); }
+      fetchData(); // Refresh immediately
+    } catch (err) { 
+        console.error("Delete Error:", err);
+        alert("Failed to delete."); 
+    }
   }
 
   const openImage = (e, path) => {
@@ -58,24 +83,23 @@ const DashboardPage = ({ refreshTrigger }) => {
   };
 
   const toggleTrade = (id) => {
-    if (expandedTradeId === id) setExpandedTradeId(null); 
-    else setExpandedTradeId(id); 
+    setExpandedTradeId(expandedTradeId === id ? null : id);
   };
 
   return (
     <div className="flex flex-col h-full overflow-hidden relative z-10">
       
-      {/* 1. Stats Section - Added backdrop-blur for readability over rain */}
+      {/* 1. Stats Section */}
       <div className="flex-none grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div className="bg-tv-card/90 backdrop-blur-sm p-6 rounded border border-tv-slate/20">
           <h3 className="text-tv-slate text-xs uppercase tracking-widest">Net P&L (All Time)</h3>
-          <p className={`text-4xl font-mono mt-2 font-bold ${stats.totalPnL >= 0 ? 'text-tv-emerald' : 'text-tv-crimson'}`}>
-            ₹{stats.totalPnL?.toFixed(2)}
+          <p className={`text-4xl font-mono mt-2 font-bold ${stats.netPnL >= 0 ? 'text-tv-emerald' : 'text-tv-crimson'}`}>
+            ₹{stats.netPnL ? Number(stats.netPnL).toFixed(2) : "0.00"}
           </p>
         </div>
         <div className="bg-tv-card/90 backdrop-blur-sm p-6 rounded border border-tv-slate/20">
           <h3 className="text-tv-slate text-xs uppercase tracking-widest">Win Rate (All Time)</h3>
-          <p className="text-4xl font-mono mt-2 text-white font-bold">{Math.round(stats.winRate)}%</p>
+          <p className="text-4xl font-mono mt-2 text-white font-bold">{Math.round(stats.winRate || 0)}%</p>
         </div>
       </div>
 
@@ -92,7 +116,6 @@ const DashboardPage = ({ refreshTrigger }) => {
           {trades.length === 0 && <p className="text-tv-slate text-center py-10 opacity-50 bg-black/50 rounded">Void is empty.</p>}
           
           {trades.map(t => (
-            // Added bg-opacity to cards so rain doesn't show THROUGH the text, but behind the card
             <div 
                 key={t._id} 
                 onClick={() => toggleTrade(t._id)}
@@ -112,7 +135,7 @@ const DashboardPage = ({ refreshTrigger }) => {
                 </div>
                 <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
                     <span className={`font-mono text-xl font-bold ${t.netPnL >= 0 ? 'text-tv-emerald' : 'text-tv-crimson'}`}>
-                        {t.netPnL >= 0 ? '+' : ''}{t.netPnL.toFixed(2)}
+                        {t.netPnL >= 0 ? '+' : ''}{Number(t.netPnL).toFixed(2)}
                     </span>
                     <div className="text-tv-slate text-xs">
                         {expandedTradeId === t._id ? <FaChevronUp/> : <FaChevronDown/>}
@@ -263,7 +286,6 @@ const TradeFormPage = () => {
     <div className="h-full overflow-y-auto custom-scroll pr-2 relative z-10">
       <h2 className="text-2xl font-bold text-white mb-6 drop-shadow-md">Log New Trade</h2>
       
-      {/* Added backdrop-blur to form for readability */}
       <form onSubmit={handleSubmit(onSubmit)} className="bg-tv-card/95 backdrop-blur-md p-6 rounded border border-tv-slate/20 shadow-xl">
         
         {/* ROW 1 */}
@@ -384,21 +406,19 @@ const TradeFormPage = () => {
 function App() {
   return (
     <BrowserRouter>
-      {/* WRAPPER: 
-         - removed 'bg-black' (so it doesn't cover canvas)
-         - relative positioning
-      */}
+      {/* WRAPPER */}
       <div className="h-screen w-screen bg-transparent text-tv-text font-sans flex flex-col overflow-hidden relative">
         
-        {/* BACKGROUND: Level 0 */}
+        {/* BACKGROUND */}
         <MatrixBackground />
 
-        {/* HEADER: Level 10 (On top of background) */}
+        {/* HEADER */}
         <header className="flex-none max-w-5xl w-full mx-auto relative flex justify-center items-center py-6 px-4 z-10">
           <Link to="/" className="hover:opacity-80 transition">
             <img src={logoData} alt="TradeVoid Logo" className="h-28 w-auto object-contain drop-shadow-lg" />
           </Link>
           
+          {/* Header Action Button (Desktop) */}
           <div className="absolute right-4 top-1/2 -translate-y-1/2 hidden md:block">
              <Routes>
                <Route path="/" element={
@@ -406,9 +426,12 @@ function App() {
                    <FaPlus /> Log Trade
                  </Link>
                } />
+               {/* FIX: Catch-all route to silence warning on /add page */}
+               <Route path="*" element={null} />
              </Routes>
           </div>
           
+          {/* Header Action Button (Mobile) */}
           <div className="md:hidden absolute top-28 mt-2 right-4">
              <Routes>
                <Route path="/" element={
@@ -416,11 +439,13 @@ function App() {
                    <FaPlus /> Log
                  </Link>
                } />
+               {/* FIX: Catch-all route for mobile too */}
+               <Route path="*" element={null} />
              </Routes>
           </div>
         </header>
 
-        {/* MAIN CONTENT: Level 10 (On top of background) */}
+        {/* MAIN CONTENT */}
         <main className="flex-1 w-full max-w-5xl mx-auto px-4 pb-4 overflow-hidden flex flex-col z-10">
           <Routes>
             <Route path="/" element={<DashboardPage />} />
