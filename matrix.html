@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Matrix Digital Rain</title>
+    <style>
+        /* DESIGNER NOTE: 
+           We strip away all default browser margins to make the canvas immersive.
+           The background is set to black to make the green pop. 
+        */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: black;
+            overflow: hidden; /* Hide scrollbars */
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="matrixCanvas"></canvas>
+
+<script>
+    // 1. SETUP THE CANVAS
+    const canvas = document.getElementById('matrixCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Make the canvas full screen
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // 2. THE CHARACTERS (The "Glyphs")
+    // We include Katakana, Latin, and Numerals for that authentic look
+    const katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン';
+    const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const nums = '0123456789';
+    
+    // Combine them into a single string
+    const alphabet = katakana + latin + nums;
+
+    // 3. DESIGN CONFIGURATION
+    const fontSize = 16;
+    const columns = canvas.width / fontSize; // Number of columns for the rain
+
+    // 4. THE RAIN DROPS
+    // An array to keep track of the Y coordinate of each column.
+    // We start everyone at y=1 (top of screen)
+    const drops = [];
+    for( let x = 0; x < columns; x++ ) {
+        drops[x] = 1;
+    }
+
+    // 5. THE DRAWING LOOP
+    const draw = () => {
+        // DESIGN TRICK: The Trail Effect
+        // Instead of clearing the screen completely, we draw a black rectangle
+        // with 5% opacity. This makes the old letters fade out slowly, creating the trail.
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.05)'; 
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Set the text style
+        ctx.fillStyle = '#0F0'; // Phosphor Green
+        ctx.font = fontSize + 'px monospace';
+
+        // Loop over the drops
+        for(let i = 0; i < drops.length; i++)
+        {
+            // Pick a random character
+            const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+            
+            // Draw the character
+            // x = i * fontSize, y = drops[i] * fontSize
+            ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+            // Reset the drop to the top randomly after it has crossed the screen
+            // Adding Math.random() > 0.975 adds randomness so they don't all loop together
+            if(drops[i] * fontSize > canvas.height && Math.random() > 0.975)
+                drops[i] = 0;
+
+            // Move the drop down by one row
+            drops[i]++;
+        }
+    };
+
+    // Run the draw function every 30 milliseconds
+    setInterval(draw, 30);
+
+    // Handle window resizing
+    window.addEventListener('resize', () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    });
+
+</script>
+
+</body>
+</html>

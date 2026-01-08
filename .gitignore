@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Environment Variables (Security Risk!)
+.env
+.env.local
+
+# Build output
+client/dist/
+client/build/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Optional: Ignore uploaded images if you don't want them in GitHub
+server/uploads/
